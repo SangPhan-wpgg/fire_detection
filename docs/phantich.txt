@@ -1,0 +1,50 @@
+PHÂN TÍCH VÀ THIẾT KẾ MÔ HÌNH YOLOv8 PHÁT HIỆN ĐÁM CHÁY TỪ ẢNH VỆ TINH
+1. Mục đích của tài liệu
+Tài liệu này trình bày cách phân tích và thiết kế mô hình YOLOv8 ngay từ giai đoạn bắt đầu dự án phát hiện đám cháy trên ảnh vệ tinh. Nội dung được xây dựng từ yêu cầu của đề tài, mã nguồn trong các notebook và kết quả thực nghiệm đã lưu trong dự án.
+
+Tài liệu tách rõ ba lớp nội dung:
+
+Thiết kế ban đầu: bài toán cần giải quyết, yêu cầu, dữ liệu, kiến trúc và kế hoạch thực nghiệm.
+Cách dự án đã triển khai: cấu hình YOLOv8n, quy trình huấn luyện và đánh giá thực tế.
+Phân tích sau thực nghiệm: ý nghĩa kết quả, hạn chế hiện tại và phương án cải tiến.
+Việc phân biệt ba lớp nội dung trên giúp báo cáo không trình bày một kết quả đã có như thể đó là mục tiêu ban đầu, đồng thời không nhầm một đề xuất tương lai với chức năng đã hoàn thành.
+
+2. Tổng quan đề tài
+2.1. Bối cảnh
+Cháy rừng và các đám cháy ngoài trời có thể gây thiệt hại lớn về môi trường, hệ sinh thái, tài sản và sức khỏe con người. Quan sát bằng ảnh vệ tinh có ưu điểm bao phủ phạm vi rộng và tiếp cận được những khu vực khó giám sát trực tiếp. Vì vậy, đề tài sử dụng thị giác máy tính để tự động tìm vị trí nghi ngờ có cháy trên từng ảnh đầu vào.
+
+Trong giai đoạn hiện tại, đầu ra của mô hình chỉ nên được xem là thông tin hỗ trợ phát hiện hoặc cảnh báo sơ bộ. Hệ thống chưa sử dụng dữ liệu đa phổ, chuỗi ảnh theo thời gian, thông tin khí tượng hay tọa độ địa lý thực địa để xác nhận sự kiện cháy.
+
+2.2. Mục tiêu tổng quát
+Xây dựng mô hình có khả năng nhận ảnh vệ tinh RGB, phát hiện vùng xuất hiện đám cháy và trả về hộp giới hạn kèm độ tin cậy, đồng thời bảo đảm mô hình đủ nhẹ để có thể mở rộng sang một hệ thống suy luận nhanh.
+
+2.3. Mục tiêu cụ thể
+Xây dựng và kiểm soát chất lượng bộ dữ liệu ảnh có cháy và không cháy.
+Gán nhãn vị trí đám cháy theo định dạng YOLO.
+Huấn luyện chuyển giao mô hình YOLOv8n cho một lớp fire.
+Đánh giá khả năng định vị bằng Precision, Recall, F1-score, mAP50 và mAP50-95.
+Đo thời gian tiền xử lý, suy luận và hậu xử lý.
+Phân tích lỗi bỏ sót, cảnh báo nhầm và khả năng phát hiện đám cháy nhỏ.
+Đề xuất quy trình có thể tái lập và hướng triển khai trong tương lai.
+3. Phân tích bài toán
+3.1. Phát biểu bài toán
+Đây là bài toán phát hiện đối tượng một lớp (single-class object detection), không phải bài toán phân loại ảnh đơn thuần.
+
+Đầu vào: một ảnh vệ tinh hoặc ảnh viễn thám quang học dạng RGB.
+Đầu ra: tập các dự đoán (D = {(b_i, c_i, s_i)}), trong đó (b_i) là hộp giới hạn, (c_i) là lớp fire và (s_i) là độ tin cậy.
+Ảnh dương tính: có ít nhất một vùng cháy được gán nhãn.
+Ảnh âm tính: không có đối tượng fire; tệp nhãn tương ứng có thể rỗng.
+Mô hình phải đồng thời trả lời hai câu hỏi: “trong ảnh có vùng nghi ngờ cháy hay không?” và “vùng đó nằm ở đâu?”. Do đó, chỉ dùng độ chính xác phân loại ảnh là không đủ; cần đánh giá cả khả năng phát hiện và độ khớp của hộp giới hạn.
+
+3.2. Đối tượng dễ gây nhầm lẫn
+Các mẫu nền cần được chú trọng gồm mây, sương mù, khói không rõ nguồn, đất hoặc mái nhà có màu sáng, vùng phản xạ ánh nắng, vùng màu đỏ/cam và các cấu trúc có hình dạng gần giống lửa. Những ảnh này nên được đưa vào nhóm hard negative để kiểm tra khả năng giảm cảnh báo nhầm.
+
+3.3. Phạm vi
+Trong phạm vi hợp lý của phiên bản đầu:
+
+Mô hình xử lý từng ảnh độc lập.
+Chỉ có một lớp phát hiện là fire.
+Kết quả định vị được biểu diễn bằng bounding box.
+Chưa suy ra diện tích cháy thực tế nếu không có độ phân giải mặt đất (GSD) và thông tin địa lý.
+Chưa tự động gửi cảnh báo đến cơ quan chức năng.
+Nhánh YOLOv8 Segmentation là một hướng mở rộng riêng, không được dùng để khẳng định hiệu quả của mô hình detection.
