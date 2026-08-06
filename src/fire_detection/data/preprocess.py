@@ -1,0 +1,106 @@
+"""Lọc ảnh lỗi/trùng và chuẩn hóa ảnh gốc sang JPEG."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import cv2
+
+from fire_detection.utils.console import configure_utf8_output
+
+
+VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+
+
+@dataclass
+class PreprocessStats:
+    total: int = 0
+    corrupt: int = 0
+    duplicate: int = 0
+    kept: int = 0
+
+
+def image_content_hash(image) -> str:
+    """Tạo hash nội dung hỗ trợ phát hiện ảnh trùng chính xác sau khi decode."""
+
+    sample = cv2.resize(image, (100, 100), interpolation=cv2.INTER_AREA)
+    sample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
+    return hashlib.sha256(sample.tobytes()).hexdigest()
+
+
+def resize_max_side(image, max_side: int):
+    """Thu nhỏ ảnh vượt giới hạn và giữ nguyên tỷ lệ; không phóng lớn ảnh nhỏ."""
+
+    height, width = image.shape[:2]
+    longest = max(height, width)
+    if longest <= max_side:
+        return image
+    scale = max_side / longest
+    target = (max(1, round(width * scale)), max(1, round(height * scale)))
+    return cv2.resize(image, target, interpolation=cv2.INTER_AREA)
+
+
+def preprocess_directory(
+    input_dir: str | Path,
+    output_dir: str | Path,
+    *,
+    max_side: int = 1280,
+    jpeg_quality: int = 95,
+) -> PreprocessStats:
+    """Đọc ảnh đệ quy, bỏ ảnh lỗi/trùng và ghi tập JPEG đã chuẩn hóa."""
+
+    source = Path(input_dir)
+    destination = Path(output_dir)
+    if not source.is_dir():
+        raise FileNotFoundError(f"Không tìm thấy thư mục ảnh: {source}")
+    if source.resolve() == destination.resolve():
+        raise ValueError("Thư mục đầu vào và đầu ra phải khác nhau")
+
+    destination.mkdir(parents=True, exist_ok=True)
+    seen_hashes: set[str] = set()
+    stats = PreprocessStats()
+
+    candidates = sorted(
+        path for path in source.rglob("*") if path.is_file() and path.suffix.lower() in VALID_EXTENSIONS
+    )
+    for image_path in candidates:
+        stats.total += 1
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image is None:
+            stats.corrupt += 1
+            continue
+
+        content_hash = image_content_hash(image)
+        if content_hash in seen_hashes:
+            stats.duplicate += 1
+            continue
+        seen_hashes.add(content_hash)
+
+        image = resize_max_side(image, max_side)
+        output_path = destination / f"image_{stats.kept:06d}.jpg"
+        written = cv2.imwrite(
+            str(output_path), image, [int(cv2.IMWRITE_JPEG_QUALITY), jpeg_quality]
+        )
+        if not written:
+            raise OSError(f"Không thể ghi ảnh: {output_path}")
+        stats.kept += 1
+
+    return stats
+
+
+def main() -> None:
+    configure_utf8_output()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", default="data/raw", help="Thư mục ảnh gốc")
+    parser.add_argument("--output", default="data/interim/clean_images", help="Thư mục ảnh sạch")
+    parser.add_argument("--max-side", type=int, default=1280)
+    args = parser.parse_args()
+    stats = preprocess_directory(args.input, args.output, max_side=args.max_side)
+    print(asdict(stats))
+
+
+if __name__ == "__main__":
+    main()
