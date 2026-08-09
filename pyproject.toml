@@ -1,1 +1,41 @@
 # Thông tin dự án và dependencies chính
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fire-detection-satellite"
+version = "0.1.0"
+description = "Phát hiện đám cháy từ ảnh vệ tinh bằng YOLOv8"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "albumentations>=1.4,<3",
+    "matplotlib>=3.8,<4",
+    "numpy>=1.26,<3",
+    "opencv-python>=4.10,<5",
+    "pandas>=2.0,<3",
+    "PyYAML>=6,<7",
+    "roboflow==1.2.11",
+    "ultralytics==8.3.240",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+fire-prepare-data = "fire_detection.data.preprocess:main"
+fire-train = "fire_detection.training.train:main"
+fire-evaluate = "fire_detection.evaluation.evaluate:main"
+fire-predict = "fire_detection.inference.predict:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
