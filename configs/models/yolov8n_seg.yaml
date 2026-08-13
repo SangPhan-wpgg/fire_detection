@@ -1,0 +1,23 @@
+experiment_id: yolov8n_segmentation_v2_640_seed42
+task: segment
+model: yolov8n-seg.pt
+data: configs/data/segmentation.yaml
+
+train:
+  imgsz: 640
+  epochs: 300
+  batch: 64
+  patience: 30
+  seed: 42
+  deterministic: true
+  device: 0
+  project: artifacts/checkpoints/segmentation
+  name: yolov8n_segmentation_v2_640_seed42
+
+evaluation:
+  split: test
+  conf: 0.001
+  iou: 0.7
+  save_json: true
+  project: artifacts/metrics
+  name: yolov8n_segmentation_v2_640_seed42
