@@ -1,0 +1,4 @@
+model: rtdetr-l.pt
+task: detect
+data: configs/data/detection.yaml
+status: notebook_experiment
