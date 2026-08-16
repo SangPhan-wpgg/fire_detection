@@ -81,6 +81,31 @@ Quy trình nghiên cứu dự kiến gồm các giai đoạn:
 
 Danh sách công nghệ có thể được điều chỉnh trong quá trình thực hiện tùy theo yêu cầu của dữ liệu và tài nguyên tính toán.
 
+## Cài đặt và chạy
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -e ".[dev,notebooks]"
+```
+
+Detectron2 không được khóa trong dependency chung vì wheel phụ thuộc hệ điều hành,
+phiên bản PyTorch và CUDA. Hãy cài bản Detectron2 tương thích trước khi chạy hai
+notebook Faster R-CNN/RetinaNet.
+
+Các lệnh chính:
+
+```powershell
+fire-prepare-data --input data/raw --output data/interim/clean_images
+fire-validate-data --images <images> --labels <labels>
+fire-split-data --images <images> --labels <labels> --output data/processed/detection --group-manifest <groups.csv>
+fire-augment-negatives --input <negative-train-images> --output <augmented-images> --labels-output <augmented-labels>
+fire-train --config configs/models/yolov8n.yaml
+fire-evaluate --config configs/models/yolov8n.yaml --checkpoint <best.pt>
+fire-predict --checkpoint <best.pt> --source <image-or-directory>
+```
+
+`group-manifest` có định dạng `image,group`. Các ảnh/tiles thuộc cùng scene phải có cùng `group`. Dataset và artifact lớn không được đưa vào Git; xem thêm `data/README.md` và `artifacts/README.md`.
+
 ## Kết quả mong đợi
 
 - Một bộ dữ liệu được tổ chức và kiểm tra rõ ràng cho bài toán phát hiện đám cháy.
@@ -95,6 +120,6 @@ Kết quả của mô hình phụ thuộc nhiều vào chất lượng và mức
 
 ## Trạng thái
 
-**Giai đoạn xác định đề tài và thiết kế hướng nghiên cứu.**
+**Giai đoạn xây dựng pipeline thực nghiệm có thể tái lập.**
 
-Tài liệu này mô tả mục tiêu và kế hoạch ban đầu của dự án, không trình bày kết quả huấn luyện hoặc kết luận thực nghiệm.
+Source code hiện hỗ trợ chuẩn bị/chia dữ liệu, huấn luyện, đánh giá và suy luận YOLO. Faster R-CNN, RetinaNet và SSDLite vẫn là notebook experiment; cần chạy lại trên cùng phiên bản dataset trước khi đưa ra kết luận so sánh.

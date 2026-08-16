@@ -1,8 +1,7 @@
 # Dataset YOLO segmentation một lớp.
-path: data/processed/segmentation
-train: train/images
-val: valid/images
-test: test/images
+train: ../../data/processed/segmentation/train/images
+val: ../../data/processed/segmentation/valid/images
+test: ../../data/processed/segmentation/test/images
 
 names:
   0: fire
