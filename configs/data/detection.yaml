@@ -1,9 +1,7 @@
 # Dataset YOLO detection một lớp.
-# Chạy script từ thư mục gốc của dự án để đường dẫn tương đối được nhất quán.
-path: data/processed/detection
-train: train/images
-val: valid/images
-test: test/images
+train: ../../data/processed/detection/train/images
+val: ../../data/processed/detection/valid/images
+test: ../../data/processed/detection/test/images
 
 names:
   0: fire
