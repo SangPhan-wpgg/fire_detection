@@ -1,3 +1,5 @@
+"""CLI tương thích để kiểm tra dataset detection."""
+
 from fire_detection.data.validation import main
 
 
