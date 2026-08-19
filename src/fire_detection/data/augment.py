@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+from fire_detection.utils.console import configure_utf8_output
 
 
 def geometric_augmentation(image: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -62,14 +65,29 @@ def augment_negative_directory(
     output_dir: str | Path,
     *,
     seed: int = 42,
+    labels_output_dir: str | Path | None = None,
+    require_train_path: bool = True,
 ) -> int:
-    """Sinh bốn biến thể cho mỗi ảnh negative thuộc train và trả số ảnh đã ghi."""
+    """Sinh bốn biến thể cho ảnh negative thuộc train và tạo nhãn rỗng tùy chọn."""
 
     source = Path(input_dir)
     destination = Path(output_dir)
     if not source.is_dir():
         raise FileNotFoundError(f"Không tìm thấy thư mục: {source}")
+    if require_train_path and "train" not in {part.lower() for part in source.parts}:
+        raise ValueError("Chỉ được augmentation ảnh thuộc đường dẫn train")
+    if source.resolve() == destination.resolve():
+        raise ValueError("Thư mục đầu vào và đầu ra phải khác nhau")
+    if destination.exists() and any(destination.iterdir()):
+        raise FileExistsError(f"Thư mục augmentation đầu ra phải rỗng: {destination}")
+    label_destination = Path(labels_output_dir) if labels_output_dir is not None else None
+    if label_destination is not None and label_destination.resolve() == destination.resolve():
+        raise ValueError("Thư mục ảnh và nhãn augmentation phải khác nhau")
+    if label_destination is not None and label_destination.exists() and any(label_destination.iterdir()):
+        raise FileExistsError(f"Thư mục nhãn augmentation phải rỗng: {label_destination}")
     destination.mkdir(parents=True, exist_ok=True)
+    if label_destination is not None:
+        label_destination.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
     transforms = {
         "geom": geometric_augmentation,
@@ -78,9 +96,15 @@ def augment_negative_directory(
         "fog": fog_augmentation,
     }
     count = 0
-    for image_path in sorted(source.iterdir()):
-        if image_path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
-            continue
+    image_paths = [
+        path
+        for path in sorted(source.iterdir())
+        if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+    ]
+    stems = [path.stem for path in image_paths]
+    if len(stems) != len(set(stems)):
+        raise ValueError("Tên ảnh negative bị trùng stem giữa các phần mở rộng")
+    for image_path in image_paths:
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         if image is None:
             continue
@@ -88,5 +112,34 @@ def augment_negative_directory(
             output_path = destination / f"{prefix}_{image_path.stem}.jpg"
             if not cv2.imwrite(str(output_path), transform(image, rng)):
                 raise OSError(f"Không thể ghi ảnh: {output_path}")
+            if label_destination is not None:
+                (label_destination / f"{output_path.stem}.txt").touch()
             count += 1
     return count
+
+
+def main() -> None:
+    configure_utf8_output()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", required=True, help="Thư mục ảnh negative thuộc train")
+    parser.add_argument("--output", required=True, help="Thư mục ảnh augmentation rỗng")
+    parser.add_argument("--labels-output", help="Thư mục nhận các label rỗng tương ứng")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--allow-non-train-path",
+        action="store_true",
+        help="Chỉ dùng khi đường dẫn không chứa tên 'train' nhưng dữ liệu đã được xác nhận là train",
+    )
+    args = parser.parse_args()
+    count = augment_negative_directory(
+        args.input,
+        args.output,
+        seed=args.seed,
+        labels_output_dir=args.labels_output,
+        require_train_path=not args.allow_non_train_path,
+    )
+    print({"augmented_images": count})
+
+
+if __name__ == "__main__":
+    main()

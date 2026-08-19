@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -24,11 +25,13 @@ class PreprocessStats:
 
 
 def image_content_hash(image) -> str:
-    """Tạo hash nội dung hỗ trợ phát hiện ảnh trùng chính xác sau khi decode."""
+    """Tạo hash nội dung ảnh đã decode để phát hiện bản sao chính xác."""
 
-    sample = cv2.resize(image, (100, 100), interpolation=cv2.INTER_AREA)
-    sample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
-    return hashlib.sha256(sample.tobytes()).hexdigest()
+    digest = hashlib.sha256()
+    digest.update(str(image.shape).encode("ascii"))
+    digest.update(str(image.dtype).encode("ascii"))
+    digest.update(image.tobytes())
+    return digest.hexdigest()
 
 
 def resize_max_side(image, max_side: int):
@@ -56,12 +59,24 @@ def preprocess_directory(
     destination = Path(output_dir)
     if not source.is_dir():
         raise FileNotFoundError(f"Không tìm thấy thư mục ảnh: {source}")
-    if source.resolve() == destination.resolve():
-        raise ValueError("Thư mục đầu vào và đầu ra phải khác nhau")
+    if max_side <= 0:
+        raise ValueError("max_side phải dương")
+    if not 0 <= jpeg_quality <= 100:
+        raise ValueError("jpeg_quality phải thuộc [0, 100]")
+
+    source_resolved = source.resolve()
+    destination_resolved = destination.resolve()
+    if source_resolved == destination_resolved or source_resolved in destination_resolved.parents:
+        raise ValueError("Thư mục đầu ra phải nằm ngoài thư mục đầu vào")
+    if destination.exists() and any(destination.iterdir()):
+        raise FileExistsError(
+            f"Thư mục đầu ra phải rỗng để tránh lẫn dữ liệu từ lần chạy trước: {destination}"
+        )
 
     destination.mkdir(parents=True, exist_ok=True)
     seen_hashes: set[str] = set()
     stats = PreprocessStats()
+    manifest_rows: list[dict[str, str]] = []
 
     candidates = sorted(
         path for path in source.rglob("*") if path.is_file() and path.suffix.lower() in VALID_EXTENSIONS
@@ -86,8 +101,20 @@ def preprocess_directory(
         )
         if not written:
             raise OSError(f"Không thể ghi ảnh: {output_path}")
+        manifest_rows.append(
+            {
+                "source": image_path.relative_to(source).as_posix(),
+                "output": output_path.name,
+                "sha256_decoded": content_hash,
+            }
+        )
         stats.kept += 1
 
+    manifest = destination / "preprocess_manifest.csv"
+    with manifest.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=["source", "output", "sha256_decoded"])
+        writer.writeheader()
+        writer.writerows(manifest_rows)
     return stats
 
 
